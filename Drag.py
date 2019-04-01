@@ -23,7 +23,7 @@ def callback(data):
 	#else:
 	#	force_msg.wrench.force.x = 0
 	#	pub.publish(force_msg)
-	Linear_Drag_X = (20 / Max_Velocity)
+	Linear_Drag_X = (10 / Max_Velocity)
 	
 	
 
@@ -36,7 +36,7 @@ def Apply_Force():
 	pub = rospy.Publisher('/wrench', WrenchStamped, queue_size=20)
 	rospy.init_node('move_sub', anonymous=False)
 	force_msg = WrenchStamped()
-	force_msg.wrench.force.x = 20
+	force_msg.wrench.force.x = 10
 	
 	
 	
@@ -47,6 +47,10 @@ def Apply_Force():
 		if Compare_Velocties != .000001:
 			pub.publish(force_msg)
 			rospy.Subscriber("/odom", Odometry, callback)
+		else:
+			force_stop = WrenchStamped()
+			force_stop.wrench.force.x = 0
+			
 		Print_Linear_Drag()
 		
 		
