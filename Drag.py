@@ -46,16 +46,19 @@ def Apply_Force():
 
 	while not rospy.is_shutdown():
 		rospy.Subscriber("/odom", Odometry, get_velocity1)
-		rospy.sleep(1)
+		velocity1 = Velocity1
+		
 		rospy.Subscriber("/odom", Odometry, get_velocity2)
-		Compare_Velocities = abs(Velocity1 - Velocity2)
-		rospy.loginfo('Velocity1: {},Velocity2: {}, Compare Velocities: {}'.format(Velocity1, Velocity2, Compare_Velocities))
-		if Compare_Velocities < .0001:
+		velocity2 = Velocity2
+		Compare_Velocities = abs(velocity1 - velocity2)
+		rospy.loginfo('Velocity1: {},Velocity2: {}, Compare Velocities: {}'.format(velocity1, velocity2, Compare_Velocities))
+		while (True):
 			pub.publish(force_msg)
-		else:
-			force_stop = WrenchStamped()
-			force_stop.wrench.force.x = 0
-			pub.publish(force_stop)
+			if Compare_Velocities == 0:
+				break
+		force_stop = WrenchStamped()
+		force_stop.wrench.force.x = -10
+		pub.publish(force_stop)
 			
 		#Print_Linear_Drag()
 		
