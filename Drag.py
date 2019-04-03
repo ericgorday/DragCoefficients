@@ -7,31 +7,29 @@ from nav_msgs.msg import Odometry
 
 Linear_Drag_X = 0
 Linear_Drag_Y = 0
-Max_Velocity = 0
-Current_VelocityX = 0
-Compare_Velocties = abs(Max_Velocity - Current_VelocityX)
+Velocity1 = 0
+Velocity2 = 0
 
 
 
-def get_velocity(data):
-	global Max_Velocity
-	Max_Velocity = data.twist.twist.linear.x
+
+def get_velocity1(data):
+	global Velocity1
+	Velocity1 = data.twist.twist.linear.x
 
 
 
-def callback(data):
-	global Linear_Drag_X, Max_Velocity, Current_VelocityX
-	Current_VelocityX = data.twist.twist.linear.x
+def get_velocity2(data):
+	global Velocity2
+	Velocity2 = data.twist.twist.linear.x
 	
 	
-	if Max_Velocity < Current_VelocityX:
-		Max_Velocity = Current_VelocityX
-	Linear_Drag_X = (10 / Max_Velocity)
+	#Linear_Drag_X = (10 / Max_Velocity)
 	
 	
 
 def Print_Linear_Drag():
-	rospy.loginfo('Linear Drag X:  {}, Linear Drag Y:  {}'.format(Linear_Drag_X,Linear_Drag_Y))
+	rospy.loginfo('Linear Drag X:  {}, Linear Drag Y:  {}'.format(Linear_Drag_X,Current_VelocityX))
 
 
 
@@ -47,17 +45,30 @@ def Apply_Force():
 
 
 	while not rospy.is_shutdown():
-		rospy.Subscriber("/odom", Odometry, get_velocity)
-		if Compare_Velocties < .000000001:
+		rospy.Subscriber("/odom", Odometry, get_velocity1)
+		rospy.sleep(1)
+		rospy.Subscriber("/odom", Odometry, get_velocity2)
+		Compare_Velocities = abs(Velocity1 - Velocity2)
+		rospy.loginfo('Velocity1: {},Velocity2: {}, Compare Velocities: {}'.format(Velocity1, Velocity2, Compare_Velocities))
+		if Compare_Velocities < .0001:
 			pub.publish(force_msg)
-			rospy.Subscriber("/odom", Odometry, callback)
 		else:
 			force_stop = WrenchStamped()
 			force_stop.wrench.force.x = 0
 			pub.publish(force_stop)
 			
-		Print_Linear_Drag()
+		#Print_Linear_Drag()
 		
+		
+		
+		
+		
+
+if __name__== '__main__':
+	try:
+		Apply_Force()
+	except rospy.ROSInterruptException:
+		pass
 		
 		
 		
