@@ -7,21 +7,19 @@ from nav_msgs.msg import Odometry
 
 Linear_Drag_X = 0
 Linear_Drag_Y = 0
-Velocity1 = 0
-Velocity2 = 0
+Velocity = 0
 
 
 
 
-def get_velocity1(data):
-	global Velocity1
-	Velocity1 = data.twist.twist.linear.x
+
+def get_velocity(data):
+	global Velocity
+	Velocity = data.twist.twist.linear.x
 
 
 
-def get_velocity2(data):
-	global Velocity2
-	Velocity2 = data.twist.twist.linear.x
+
 	
 	
 	#Linear_Drag_X = (10 / Max_Velocity)
@@ -38,29 +36,31 @@ def Apply_Force():
 	rospy.init_node('move_sub', anonymous=False)
 	force_msg = WrenchStamped()
 	force_msg.wrench.force.x = 10
-	
+	pub.publish(force_msg)
 	
 	
 
 
 
-	while not rospy.is_shutdown():
-		rospy.Subscriber("/odom", Odometry, get_velocity1)
-		velocity1 = Velocity1
-		
-		rospy.Subscriber("/odom", Odometry, get_velocity2)
-		velocity2 = Velocity2
+	while (True):
+		rospy.Subscriber("/odom", Odometry, get_velocity)
+		velocity1 = Velocity
+		rospy.sleep(2)
+		velocity2 = Velocity
 		Compare_Velocities = abs(velocity1 - velocity2)
 		rospy.loginfo('Velocity1: {},Velocity2: {}, Compare Velocities: {}'.format(velocity1, velocity2, Compare_Velocities))
-		while (True):
-			pub.publish(force_msg)
-			if Compare_Velocities == 0:
-				break
-		force_stop = WrenchStamped()
-		force_stop.wrench.force.x = -10
-		pub.publish(force_stop)
-			
-		#Print_Linear_Drag()
+		if Compare_Velocities == 0:
+			print("Velocities are equal")
+			break
+		
+
+
+	force_stop = WrenchStamped()
+	force_stop.wrench.force.x = 0
+	pub.publish(force_stop)
+	while(Velocity != 0):
+		continue
+	Print_Linear_Drag()
 		
 		
 		
