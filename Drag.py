@@ -13,6 +13,12 @@ Compare_Velocties = abs(Max_Velocity - Current_VelocityX)
 
 
 
+def get_velocity(data):
+	global Max_Velocity
+	Max_Velocity = data.twist.twist.linear.x
+
+
+
 def callback(data):
 	global Linear_Drag_X, Max_Velocity, Current_VelocityX
 	Current_VelocityX = data.twist.twist.linear.x
@@ -41,7 +47,8 @@ def Apply_Force():
 
 
 	while not rospy.is_shutdown():
-		if Compare_Velocties < .00000000000000000000001:
+		rospy.Subscriber("/odom", Odometry, get_velocity)
+		if Compare_Velocties < .000000001:
 			pub.publish(force_msg)
 			rospy.Subscriber("/odom", Odometry, callback)
 		else:
