@@ -102,7 +102,12 @@ def Apply_Force(choice):
 
 if __name__== '__main__':
 	try:
-		Apply_Force()
+		Apply_Force(x)
+		Apply_Force(y)
+		Apply_Force(z)
+		Apply_Force(yw)
+		Apply_Force(rl)
+		Apply_Force(p)
 		file_object = open("DragCoefficients", 'w')
 		file_object.write("Drag Coefficients:")
 		file_object.write("Linear X: " + str(Linear_Drag_X))
