@@ -25,7 +25,7 @@ def get_velocity(data,choice):
 	elif choice == 'z':
 		Velocity = data.twist.twist.linear.z
 		Linear_Drag_Z = (10 / Max_Velocity)
-	elif choice == 'r':
+	elif choice == 'rl':
 		Velocity = data.twist.twist.angular.x
 		Roll_Drag = (10 / Max_Velocity)
 	elif choice == 'p':
@@ -37,7 +37,7 @@ def get_velocity(data,choice):
 	
 
 def Print_Linear_Drag():
-	rospy.loginfo('Linear Drag X:  {}, Linear Drag Y:  {}'.format(Linear_Drag_X,0))
+	rospy.loginfo('Linear Drag X:  {}, Linear Drag Y:  {}, Linear Drag z: {}, Linear Drag rl: {}, Linear Drag yw: {}, Linear Drag Pitch: {}'.format(Linear_Drag_X,Linear_Drag_Y, Linear_Drag_z, Roll_Drag, Yaw_Drag, Pitch_Drag))
 
 
 
@@ -53,11 +53,11 @@ def Apply_Force(choice):
 	elif(choice == 'z'):
 		force_msg.wrench.force.z = 10
 	elif(choice == 'yw'):
-		force_msg.wrench.angular.y = 10
+		force_msg.wrench.torque.y = 1
 	elif(choice == 'rl'):
-		force_msg.wrench.angular.x = 10
+		force_msg.wrench.torque.x = 1
 	elif(choice == 'p'):
-		force_msg.wrench.angular.z = 10
+		force_msg.wrench.torque.z = 1
 	pub.publish(force_msg)
 	
 	
@@ -65,7 +65,7 @@ def Apply_Force(choice):
 
 
 	while (True):
-		rospy.Subscriber("/odom", Odometry, get_velocity(choice))
+		rospy.Subscriber("/odom", Odometry, get_velocity, choice)
 		velocity1 = Velocity
 		rospy.sleep(2)
 		velocity2 = Velocity
@@ -83,11 +83,11 @@ def Apply_Force(choice):
 	elif(choice == 'z'):
 		force_msg.wrench.force.z = 0
 	elif(choice == 'yw'):
-		force_msg.wrench.angular.y = 0
+		force_msg.wrench.torque.y = 0
 	elif(choice == 'rl'):
-		force_msg.wrench.angular.x = 0
+		force_msg.wrench.torque.x = 0
 	elif(choice == 'p'):
-		force_msg.wrench.angular.z = 0
+		force_msg.wrench.torque.z = 0
 	
 
 	pub.publish(force_msg)
@@ -102,12 +102,12 @@ def Apply_Force(choice):
 
 if __name__== '__main__':
 	try:
-		Apply_Force(x)
-		Apply_Force(y)
-		Apply_Force(z)
-		Apply_Force(yw)
-		Apply_Force(rl)
-		Apply_Force(p)
+		Apply_Force('x')
+		Apply_Force('y')
+		Apply_Force('z')
+		Apply_Force('yw')
+		Apply_Force('rl')
+		Apply_Force('p')
 		file_object = open("DragCoefficients", 'w')
 		file_object.write("Drag Coefficients:")
 		file_object.write("Linear X: " + str(Linear_Drag_X))
