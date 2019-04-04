@@ -7,18 +7,33 @@ from nav_msgs.msg import Odometry
 
 Linear_Drag_X = 0
 Linear_Drag_Y = 0
+Linear_Drag_z = 0
+Roll_Drag = 0
+Pitch_Drag = 0
+Yaw_Drag = 0
 Velocity = 0
 Max_Velocity = .1
 
-
-
-
-
 def get_velocity(data,choice):
-	global Velocity, Linear_Drag_X, Max_Velocity
-	Velocity = data.twist.twist.linear.x
-	Linear_Drag_X = (10 / Max_Velocity)
-	
+	global Velocity, Linear_Drag_X,Linear_Drag_Y ,Linear_Drag_Z,Roll_Drag,Pitch_Drag,Yaw_Drag, Max_Velocity
+	if choice == 'x':
+		Velocity = data.twist.twist.linear.x
+		Linear_Drag_X = (10 / Max_Velocity)
+	elif choice == 'y':
+		Velocity = data.twist.twist.linear.y
+		Linear_Drag_Y = (10 / Max_Velocity)
+	elif choice == 'z':
+		Velocity = data.twist.twist.linear.z
+		Linear_Drag_Z = (10 / Max_Velocity)
+	elif choice == 'r':
+		Velocity = data.twist.twist.angular.x
+		Roll_Drag = (10 / Max_Velocity)
+	elif choice == 'p':
+		Velocity = data.twist.twist.angular.y
+		Pitch_Drag = (10 / Max_Velocity)
+	elif choice == 'yw':
+		Velocity = data.twist.twist.angular.z
+		Yaw_Drag = (10 / Max_Velocity)
 	
 
 def Print_Linear_Drag():
@@ -75,22 +90,9 @@ def Apply_Force(choice):
 		force_msg.wrench.angular.z = 0
 	
 
-
-
 	pub.publish(force_msg)
 	while(Velocity > .0000001):
 		continue
-	
-
-
-
-
-
-
-
-
-
-
 	Print_Linear_Drag()
 		
 		
@@ -101,5 +103,14 @@ def Apply_Force(choice):
 if __name__== '__main__':
 	try:
 		Apply_Force()
+		file_object = open("DragCoefficients", 'w')
+		file_object.write("Drag Coefficients:")
+		file_object.write("Linear X: " + str(Linear_Drag_X))
+		file_object.write("Linear Y: " + str(Linear_Drag_Y))
+		file_object.write("Linear Z: " + str(Linear_Drag_Z))
+		file_object.write("Roll: " + str(Roll_Drag))
+		file_object.write("Pitch: " + str(Pitch_Drag))
+		file_object.write("Yaw: " + str(Yaw_Drag))
+		file_object.close()
 	except rospy.ROSInterruptException:
 		pass
