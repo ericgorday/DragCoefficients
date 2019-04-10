@@ -14,6 +14,24 @@ Yaw_Drag = 0
 Velocity = 0
 Max_Velocity = .1
 
+
+def Find_Bouyancy(choice):
+	pub = rospy.Publisher('/wrench', WrenchStamped, queue_size=20)
+	rospy.init_node('move_sub', anonymous=False)
+	force_msg = WrenchStamped()
+	force_msg.force.wrench.z = -20
+	pub.Publish(force_msg)
+	rospy.sleep(5)
+	force_msg.force.wrench.z = 0
+	pub.Publish(force_msg)
+	while(True):
+		rospy.Subscriber("/odom", Odometry, get_velocity, choice)	
+		velocity1 = Velocity
+		rospy.sleep(2)
+		velocity2 = Velocity
+		Compare_Velocities = abs(velocity1 - velocity2)
+		if Compare_Velocities < .000001:
+
 def get_velocity(data,choice):
 	global Velocity, Linear_Drag_X,Linear_Drag_Y ,Linear_Drag_Z,Roll_Drag,Pitch_Drag,Yaw_Drag, Max_Velocity
 	if choice == 'x':
@@ -113,12 +131,13 @@ def Apply_Force(choice):
 
 if __name__== '__main__':
 	try:
+		Find_Bouyancy('z')
 		Apply_Force('z')
-		Apply_Force('y')
-		Apply_Force('x')
-		Apply_Force('yw')
-		Apply_Force('rl')
-		Apply_Force('p')
+		#Apply_Force('y')
+		#Apply_Force('x')
+		#Apply_Force('yw')
+		#Apply_Force('rl')
+		#Apply_Force('p')
 		file_object = open("DragCoefficients", 'w')
 		file_object.write("Drag Coefficients:")
 		file_object.write("\nLinear X: " + str(Linear_Drag_X))
