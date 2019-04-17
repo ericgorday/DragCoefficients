@@ -13,24 +13,35 @@ Pitch_Drag = 0
 Yaw_Drag = 0
 Velocity = 0
 Max_Velocity = .1
-
+Bouyancy = 0
 
 def Find_Bouyancy(choice):
-	pub = rospy.Publisher('/wrench', WrenchStamped, queue_size=20)
+	global Bouyancy
+	Down_Force = -.5
+	pub = rospy.Publisher('/wrench', WrenchStamped, queue_size=30)
 	rospy.init_node('move_sub', anonymous=False)
 	force_msg = WrenchStamped()
-	force_msg.force.wrench.z = -20
-	pub.Publish(force_msg)
-	rospy.sleep(5)
-	force_msg.force.wrench.z = 0
-	pub.Publish(force_msg)
+	force_msg.wrench.force.z = -20
+	pub.publish(force_msg)
+	rospy.sleep(10)
+	force_msg.wrench.force.z = 0
+	pub.publish(force_msg)
 	while(True):
 		rospy.Subscriber("/odom", Odometry, get_velocity, choice)	
-		velocity1 = Velocity
-		rospy.sleep(2)
-		velocity2 = Velocity
-		Compare_Velocities = abs(velocity1 - velocity2)
-		if Compare_Velocities < .000001:
+		rospy.sleep(1)
+		if Velocity > 0.0:
+			while(True):
+				force_msg.wrench.force.z = Down_Force
+				pub.publish(force_msg)
+				Down_Force = Down_Force - .001
+				rospy.sleep(.01)
+				if Velocity < 0.0:
+					break
+			break
+	Bouyancy = abs(Down_Force)
+	rospy.loginfo('Bouyancy: {}'.format(Bouyancy))
+
+
 
 def get_velocity(data,choice):
 	global Velocity, Linear_Drag_X,Linear_Drag_Y ,Linear_Drag_Z,Roll_Drag,Pitch_Drag,Yaw_Drag, Max_Velocity
@@ -53,14 +64,14 @@ def Print_Linear_Drag():
 
 
 def Calculate_Drag(choice):
-	global Linear_Drag_X, Linear_Drag_Y, Linear_Drag_Z, Pitch_Drag, Roll_Drag, Yaw_Drag, Max_Velocity
+	global Linear_Drag_X, Linear_Drag_Y, Linear_Drag_Z, Pitch_Drag, Roll_Drag, Yaw_Drag, Max_Velocity, Bouyancy
 
 	if (choice == 'x'):
 		Linear_Drag_X = (10 / abs(Max_Velocity))
 	elif (choice == 'y'):
 		Linear_Drag_Y = (10 / abs(Max_Velocity))
 	elif (choice == 'z'):
-		Linear_Drag_Z = (10 / abs(Max_Velocity))
+		Linear_Drag_Z = ((10 - Bouyancy) / (abs(Max_Velocity)))
 	elif (choice == 'rl'):
 		Roll_Drag = (5 / abs(Max_Velocity))
 	elif (choice == 'p'):
@@ -70,7 +81,7 @@ def Calculate_Drag(choice):
 
 
 def Apply_Force(choice):
-	global Max_Velocity
+	global Max_Velocity, Bouyancy, Linear_Drag_Z
 	pub = rospy.Publisher('/wrench', WrenchStamped, queue_size=20)
 	rospy.init_node('move_sub', anonymous=False)
 	force_msg = WrenchStamped()
@@ -81,11 +92,11 @@ def Apply_Force(choice):
 	elif(choice == 'z'):
 		force_msg.wrench.force.z = -10
 	elif(choice == 'yw'):
-		force_msg.wrench.torque.y = 5
+		force_msg.wrench.torque.z = 5
 	elif(choice == 'rl'):
 		force_msg.wrench.torque.x = 5
 	elif(choice == 'p'):
-		force_msg.wrench.torque.z = 5
+		force_msg.wrench.torque.y = 5
 	pub.publish(force_msg)
 	
 	
@@ -133,11 +144,11 @@ if __name__== '__main__':
 	try:
 		Find_Bouyancy('z')
 		Apply_Force('z')
-		#Apply_Force('y')
-		#Apply_Force('x')
-		#Apply_Force('yw')
-		#Apply_Force('rl')
-		#Apply_Force('p')
+		Apply_Force('y')
+		Apply_Force('x')
+		Apply_Force('yw')
+		Apply_Force('rl')
+		Apply_Force('p')
 		file_object = open("DragCoefficients", 'w')
 		file_object.write("Drag Coefficients:")
 		file_object.write("\nLinear X: " + str(Linear_Drag_X))
