@@ -3,8 +3,9 @@ import math
 import rospy
 from geometry_msgs.msg import WrenchStamped
 from nav_msgs.msg import Odometry
-
-
+#Initialized ros parameters and global values
+rospy.set_param('LINEAR_FORCE', 10)
+rospy.set_param("TORQUE", 5)
 Linear_Drag_X = 0
 Linear_Drag_Y = 0
 Linear_Drag_Z = 0
@@ -12,8 +13,18 @@ Roll_Drag = 0
 Pitch_Drag = 0
 Yaw_Drag = 0
 Velocity = 0
+''' 
+Velocities between two time intervals will never be truly 'equal' in real world
+Must compare the abs of the difference of the two with a small delta value
+if the difference is less than this value we can conclude that the numbers are satisfyingly close 
+also used as a value that is satisfyingly close to zero. Hard-coded 
+'''
+delta = .00001
+#Max velocity cannot be initialized to 0 or there will be a divid-by-zero error
 Max_Velocity = .1
 Bouyancy = 0
+appliedLinearForce = rospy.get_param("LINEAR_FORCE", default =10)
+appliedTorque = rospy.get_param("TORQUE", default=5)
 
 def Find_Bouyancy(choice):
 	global Bouyancy
@@ -65,19 +76,18 @@ def Print_Linear_Drag():
 
 def Calculate_Drag(choice):
 	global Linear_Drag_X, Linear_Drag_Y, Linear_Drag_Z, Pitch_Drag, Roll_Drag, Yaw_Drag, Max_Velocity, Bouyancy
-
 	if (choice == 'x'):
-		Linear_Drag_X = (10 / abs(Max_Velocity))
+		Linear_Drag_X = (appliedLinearForce / abs(Max_Velocity))
 	elif (choice == 'y'):
-		Linear_Drag_Y = (10 / abs(Max_Velocity))
+		Linear_Drag_Y = (appliedLinearForce / abs(Max_Velocity))
 	elif (choice == 'z'):
-		Linear_Drag_Z = ((10 - Bouyancy) / (abs(Max_Velocity)))
+		Linear_Drag_Z = ((appliedLinearForce - Bouyancy) / (abs(Max_Velocity)))
 	elif (choice == 'rl'):
-		Roll_Drag = (5 / abs(Max_Velocity))
+		Roll_Drag = (appliedTorque / abs(Max_Velocity))
 	elif (choice == 'p'):
-		Pitch_Drag = (5 / abs(Max_Velocity))
+		Pitch_Drag = (appliedTorque / abs(Max_Velocity))
 	elif (choice == 'yw'):
-		Yaw_Drag = (5 / abs(Max_Velocity))
+		Yaw_Drag = (appliedTorque / abs(Max_Velocity))
 
 
 def Apply_Force(choice):
@@ -86,17 +96,17 @@ def Apply_Force(choice):
 	rospy.init_node('move_sub', anonymous=False)
 	force_msg = WrenchStamped()
 	if(choice == 'x'):
-		force_msg.wrench.force.x = 10
+		force_msg.wrench.force.x = appliedLinearForce
 	elif(choice == 'y'):
-		force_msg.wrench.force.y = 10
+		force_msg.wrench.force.y = appliedLinearForce
 	elif(choice == 'z'):
-		force_msg.wrench.force.z = -10
+		force_msg.wrench.force.z = -appliedLinearForce
 	elif(choice == 'yw'):
-		force_msg.wrench.torque.z = 5
+		force_msg.wrench.torque.z = appliedTorque
 	elif(choice == 'rl'):
-		force_msg.wrench.torque.x = 5
+		force_msg.wrench.torque.x = appliedTorque
 	elif(choice == 'p'):
-		force_msg.wrench.torque.y = 5
+		force_msg.wrench.torque.y = appliedTorque
 	pub.publish(force_msg)
 	
 	
@@ -110,7 +120,8 @@ def Apply_Force(choice):
 		velocity2 = Velocity
 		Compare_Velocities = abs(velocity1 - velocity2)
 		rospy.loginfo('Velocity1: {},Velocity2: {}, Compare Velocities: {}'.format(velocity1, velocity2, Compare_Velocities))
-		if Compare_Velocities < .000001:
+		
+		if Compare_Velocities < delta: 
 			Max_Velocity = velocity2
 			print("Velocities are equal")
 			Calculate_Drag(choice)
@@ -131,15 +142,12 @@ def Apply_Force(choice):
 	
 
 	pub.publish(force_msg)
-	while(Velocity > .0001):
+	while(Velocity > delta):
 		continue
 	Print_Linear_Drag()
 		
 		
 		
-		
-		
-
 if __name__== '__main__':
 	try:
 		Find_Bouyancy('z')
