@@ -6,6 +6,8 @@ from nav_msgs.msg import Odometry
 #Initialized ros parameters and global values
 rospy.set_param('LINEAR_FORCE', 10)
 rospy.set_param("TORQUE", 5)
+rospy.set_param('ForceDown', -20)
+rospy.set_param('TimeOfForceDown', 10)
 Linear_Drag_X = 0
 Linear_Drag_Y = 0
 Linear_Drag_Z = 0
@@ -25,6 +27,9 @@ Max_Velocity = .1
 Bouyancy = 0
 appliedLinearForce = rospy.get_param("LINEAR_FORCE", default =10)
 appliedTorque = rospy.get_param("TORQUE", default=5)
+appliedForceDown = rospy.get_param('ForceDown', default = -20)
+TimeOfAplliedForceDown = rospy.get_param('TimeOfForceDown')
+
 
 def Find_Bouyancy(choice):
 	global Bouyancy
@@ -32,16 +37,16 @@ def Find_Bouyancy(choice):
 	pub = rospy.Publisher('/wrench', WrenchStamped, queue_size=30)
 	rospy.init_node('move_sub', anonymous=False)
 	force_msg = WrenchStamped()
-	force_msg.wrench.force.z = -20
+	force_msg.wrench.force.z = appliedForceDown
 	pub.publish(force_msg)
-	rospy.sleep(10)
+	rospy.sleep(TimeOfAplliedForceDown)
 	force_msg.wrench.force.z = 0
 	pub.publish(force_msg)
-	while(True):
+	while not (rospy.is_shutdown()):
 		rospy.Subscriber("/odom", Odometry, get_velocity, choice)	
 		rospy.sleep(1)
 		if Velocity > 0.0:
-			while(True):
+			while not (rospy.is_shutdown()):
 				force_msg.wrench.force.z = Down_Force
 				pub.publish(force_msg)
 				Down_Force = Down_Force - .001
@@ -50,12 +55,11 @@ def Find_Bouyancy(choice):
 					break
 			break
 	Bouyancy = abs(Down_Force)
-	rospy.loginfo('Bouyancy: {}'.format(Bouyancy))
 
 
 
 def get_velocity(data,choice):
-	global Velocity, Linear_Drag_X,Linear_Drag_Y ,Linear_Drag_Z,Roll_Drag,Pitch_Drag,Yaw_Drag, Max_Velocity
+	global Velocity
 	if choice == 'x':
 		Velocity = data.twist.twist.linear.x
 	elif choice == 'y':
@@ -68,10 +72,7 @@ def get_velocity(data,choice):
 		Velocity = data.twist.twist.angular.y
 	elif choice == 'yw':
 		Velocity = data.twist.twist.angular.z
-	
 
-def Print_Linear_Drag():
-	rospy.loginfo('Linear Drag X:  {}, Linear Drag Y:  {}, Linear Drag z: {}, Linear Drag rl: {}, Linear Drag yw: {}, Linear Drag Pitch: {}'.format(Linear_Drag_X,Linear_Drag_Y, Linear_Drag_Z, Roll_Drag, Yaw_Drag, Pitch_Drag))
 
 
 def Calculate_Drag(choice):
@@ -109,21 +110,14 @@ def Apply_Force(choice):
 		force_msg.wrench.torque.y = appliedTorque
 	pub.publish(force_msg)
 	
-	
-
-
-
-	while (True):
+	while not (rospy.is_shutdown()):
 		rospy.Subscriber("/odom", Odometry, get_velocity, choice)
 		velocity1 = Velocity
 		rospy.sleep(2)
 		velocity2 = Velocity
 		Compare_Velocities = abs(velocity1 - velocity2)
-		rospy.loginfo('Velocity1: {},Velocity2: {}, Compare Velocities: {}'.format(velocity1, velocity2, Compare_Velocities))
-		
 		if Compare_Velocities < delta: 
 			Max_Velocity = velocity2
-			print("Velocities are equal")
 			Calculate_Drag(choice)
 			break
 		
@@ -140,14 +134,11 @@ def Apply_Force(choice):
 	elif(choice == 'p'):
 		force_msg.wrench.torque.y = 0
 	
-
 	pub.publish(force_msg)
-	while(Velocity > delta):
+	while(Velocity > delta and not rospy.is_shutdown()):
 		continue
-	Print_Linear_Drag()
-		
-		
-		
+
+
 if __name__== '__main__':
 	try:
 		Find_Bouyancy('z')
