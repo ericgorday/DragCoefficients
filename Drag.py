@@ -1,189 +1,188 @@
 #!/usr/bin/env python
-import math
 import rospy
+import yaml
 from geometry_msgs.msg import WrenchStamped
 from nav_msgs.msg import Odometry
-#Initialized ros parameters and global values (feel free to tweak, values were empirically gained through trial/error)
-rospy.set_param('LINEAR_FORCE', 10) 
-rospy.set_param("TORQUE", 5)
-rospy.set_param('ForceDown', -20)
-rospy.set_param('TimeOfForceDown', 10)
-Linear_Drag_X = 0
-Linear_Drag_Y = 0
-Linear_Drag_Z = 0
-Roll_Drag = 0
-Pitch_Drag = 0
-Yaw_Drag = 0
-Velocity = 0
-''' 
+# Initialized ros parameters and global values (feel free to tweak, values were empirically gained through trial/error)
+linear_drag_x = 0
+linear_drag_y = 0
+linear_drag_z = 0
+roll_drag = 0
+pitch_drag = 0
+yaw_drag = 0
+velocity = 0
+'''
 Velocities between two time intervals will never be truly 'equal' in real world
 Must compare the abs of the difference of the two with a small delta value
-if the difference is less than this value we can conclude that the numbers are satisfyingly close 
+if the difference is less than this value we can conclude that the numbers are satisfyingly close
 also used as a value that is satisfyingly close to zero. Hard-coded (can be changed).
 '''
 delta = .00001
-#Max velocity cannot be initialized to 0 or there will be an initial divide-by-zero error
-Max_Velocity = .1
-Bouyancy = 0
-appliedLinearForce = rospy.get_param("LINEAR_FORCE", default =10) # Magnitude of applied force for determining drag coeffcients in linear axes
-appliedTorque = rospy.get_param("TORQUE", default=5) # Magnitude of applied torque for determining drag coeffcients in rotational axes
-appliedForceDown = rospy.get_param('ForceDown', default = -20)
-TimeOfAplliedForceDown = rospy.get_param('TimeOfForceDown')
+# Max velocity cannot be initialized to 0 or there will be an initial divide-by-zero error
+max_velocity = .1
+bouyancy = 0
+# Magnitude of applied force for determining drag coeffcients in linear axes
+applied_linear_force = rospy.get_param("linear_force", default=10)
+# Magnitude of applied torque for determining drag coeffcients in rotational axes
+applied_torque = rospy.get_param("torque", default=5)
+applied_force_down = rospy.get_param('force_down', default=-20)
+time_of_apllied_force_down = rospy.get_param('time_of_force_down', default=10)
 
 
-def Find_Bouyancy(choice): # Initial function used to upward force of buoyancy (used in determining drag in Z axis)
-	global Bouyancy
-	Down_Force = -.5 # Applies initial downward force in z axis
-	pub = rospy.Publisher('/wrench', WrenchStamped, queue_size=30)
-	rospy.init_node('move_sub', anonymous=False)
-	force_msg = WrenchStamped()
-	force_msg.wrench.force.z = appliedForceDown
-	pub.publish(force_msg) # publish wrench with force
-	rospy.sleep(TimeOfAplliedForceDown) # node sleeps for some amount of time before continuing 
-	force_msg.wrench.force.z = 0 # Applies 0 force which stops downward force
-	pub.publish(force_msg)
-	while not (rospy.is_shutdown()):
-		rospy.Subscriber("/odom", Odometry, get_velocity, choice)	
-		rospy.sleep(1)
-		if Velocity > 0.0:
-			while not (rospy.is_shutdown()):
-				force_msg.wrench.force.z = Down_Force
-				pub.publish(force_msg)
-				Down_Force = Down_Force - .001
-				rospy.sleep(.01)
-				if Velocity < 0.0:
-					break
-			break
-	Bouyancy = abs(Down_Force)
+def find_bouyancy(choice):  # Initial function used to upward force of buoyancy (used in determining drag in Z axis)
+    global bouyancy
+    down_force = -.5  # Applies initial downward force in z axis
+    pub = rospy.Publisher('/wrench', WrenchStamped, queue_size=30)
+    rospy.init_node('move_sub', anonymous=False)
+    force_msg = WrenchStamped()
+    force_msg.wrench.force.z = applied_force_down
+    pub.publish(force_msg)  # publish wrench with force
+    rospy.loginfo('Moving sub down...')
+    rospy.sleep(time_of_apllied_force_down)  # node sleeps for some amount of time before continuing
+    force_msg.wrench.force.z = 0  # Applies 0 force which stops downward force
+    pub.publish(force_msg)
+    while not (rospy.is_shutdown()):
+        rospy.Subscriber("/odom", Odometry, get_velocity, choice)
+        rospy.sleep(1)
+        if velocity > 0.0:
+            rospy.loginfo('Appling a force down to calculate the bouyancy')
+            while not (rospy.is_shutdown()):
+                force_msg.wrench.force.z = down_force
+                pub.publish(force_msg)
+                down_force = down_force - .001
+                rospy.sleep(.01)
+                if velocity < 0.0:
+                    break
+            rospy.loginfo('bouyancy found!')
+            break
+    bouyancy = abs(down_force)
+    rospy.loginfo('Bouyancy: {}'.format(bouyancy))
 
 
-
-def get_velocity(data,choice): # Function sets velocity in a certain axis depending on char input
-	global Velocity
-	# linear 
-	if choice == 'x':
-		Velocity = data.twist.twist.linear.x
-	elif choice == 'y':
-		Velocity = data.twist.twist.linear.y
-	elif choice == 'z':
-		Velocity = data.twist.twist.linear.z
-	# rotational 
-	elif choice == 'rl':
-		Velocity = data.twist.twist.angular.x
-	elif choice == 'p':
-		Velocity = data.twist.twist.angular.y
-	elif choice == 'yw':
-		Velocity = data.twist.twist.angular.z
-
+def get_velocity(data, choice):  # Function sets velocity in a certain axis depending on char input
+    global velocity
+    # linear
+    if choice == 'x':
+        velocity = data.twist.twist.linear.x
+    elif choice == 'y':
+        velocity = data.twist.twist.linear.y
+    elif choice == 'z':
+        velocity = data.twist.twist.linear.z
+    # rotational
+    elif choice == 'rl':
+        velocity = data.twist.twist.angular.x
+    elif choice == 'p':
+        velocity = data.twist.twist.angular.y
+    elif choice == 'yw':
+        velocity = data.twist.twist.angular.z
 
 
-def Calculate_Drag(choice): 
-	''' 
-	Calculates drag based on the initial applied force and the approximate max velocity 
-	the sub achieves in that axis. See for formula: 
-	Axis determined by char argument.
-	'''
-	global Linear_Drag_X, Linear_Drag_Y, Linear_Drag_Z, Pitch_Drag, Roll_Drag, Yaw_Drag, Max_Velocity, Bouyancy
-	if (choice == 'x'):
-		Linear_Drag_X = (appliedLinearForce / abs(Max_Velocity))
-	elif (choice == 'y'):
-		Linear_Drag_Y = (appliedLinearForce / abs(Max_Velocity))
-	elif (choice == 'z'):
-		Linear_Drag_Z = ((appliedLinearForce - Bouyancy) / (abs(Max_Velocity))) # Buoyancy affects z axis and must be subtracted from applied for before division.
-	elif (choice == 'rl'):
-		Roll_Drag = (appliedTorque / abs(Max_Velocity))
-	elif (choice == 'p'):
-		Pitch_Drag = (appliedTorque / abs(Max_Velocity))
-	elif (choice == 'yw'):
-		Yaw_Drag = (appliedTorque / abs(Max_Velocity))
+def calculate_drag(choice):
+    '''
+    Calculates drag based on the initial applied force and the approximate max velocity
+    the sub achieves in that axis. See for formula: http://hyperphysics.phy-astr.gsu.edu/hbase/airfri.html
+    Axis determined by char argument.
+    '''
+    global linear_drag_x, linear_drag_y, linear_drag_z, pitch_drag, roll_drag, yaw_drag, max_velocity, bouyancy
+    if (choice == 'x'):
+        linear_drag_x = (applied_linear_force / abs(max_velocity))
+    elif (choice == 'y'):
+        linear_drag_y = (applied_linear_force / abs(max_velocity))
+    elif (choice == 'z'):
+        # Buoyancy affects z axis and must be subtracted from applied for before division.
+        linear_drag_z = ((applied_linear_force - bouyancy) / (abs(max_velocity)))
+    elif (choice == 'rl'):
+        roll_drag = (applied_torque / abs(max_velocity))
+    elif (choice == 'p'):
+        pitch_drag = (applied_torque / abs(max_velocity))
+    elif (choice == 'yw'):
+        yaw_drag = (applied_torque / abs(max_velocity))
 
 
-def Apply_Force(choice):
-	'''
-	Function applies force in a given axis and allows sub to achieve 
-	terminal (linear/rotationl) velocity in that direction. Once that
-	max velocity is found, it is used in the Calculate_Drag() function.
-	'''
-	global Max_Velocity, Bouyancy, Linear_Drag_Z
-	pub = rospy.Publisher('/wrench', WrenchStamped, queue_size=20) # Publisher for applying wrench (force/torque)
-	rospy.init_node('move_sub', anonymous=False)
-	force_msg = WrenchStamped()
-	# Char argument determines axis of applied force/torque
-	if(choice == 'x'):
-		force_msg.wrench.force.x = appliedLinearForce
-	elif(choice == 'y'):
-		force_msg.wrench.force.y = appliedLinearForce
-	elif(choice == 'z'):
-		force_msg.wrench.force.z = -appliedLinearForce
-	elif(choice == 'yw'):
-		force_msg.wrench.torque.z = appliedTorque
-	elif(choice == 'rl'):
-		force_msg.wrench.torque.x = appliedTorque
-	elif(choice == 'p'):
-		force_msg.wrench.torque.y = appliedTorque
+def apply_force(choice):
+    '''
+    Function applies force in a given axis and allows sub to achieve
+    terminal (linear/rotationl) velocity in that direction. Once that
+    max velocity is found, it is used in the calculate_drag() function.
+    '''
+    global max_velocity, bouyancy, linear_drag_z
+    pub = rospy.Publisher('/wrench', WrenchStamped, queue_size=20)  # Publisher for applying wrench (force/torque)
+    rospy.init_node('move_sub', anonymous=False)
+    force_msg = WrenchStamped()
+    # Char argument determines axis of applied force/torque
+    if(choice == 'x'):
+        force_msg.wrench.force.x = applied_linear_force
+    elif(choice == 'y'):
+        force_msg.wrench.force.y = applied_linear_force
+    elif(choice == 'z'):
+        force_msg.wrench.force.z = -applied_linear_force
+    elif(choice == 'yw'):
+        force_msg.wrench.torque.z = applied_torque
+    elif(choice == 'rl'):
+        force_msg.wrench.torque.x = applied_torque
+    elif(choice == 'p'):
+        force_msg.wrench.torque.y = applied_torque
 
-	pub.publish(force_msg)
-	
-	while not (rospy.is_shutdown()):
-		'''
-		On each iteration of while loop: velocity is gained at two points in time (deltat = 2 seconds)
-		the velocity is compared by taking the absolute value of the difference of the two velocities
-		if the abs of the difference of the two velocities is smaller than small delta value,
-		the two velocities are assumed to be approximately equal. If two velocities taken at different
-		time intervals are equal, the velocity is assumed to be maximized, reaching terminal velocity.
-		'''
-		rospy.Subscriber("/odom", Odometry, get_velocity, choice)
-		velocity1 = Velocity
-		rospy.sleep(2)
-		velocity2 = Velocity
-		Compare_Velocities = abs(velocity1 - velocity2)
-		if Compare_Velocities < delta: 
-			Max_Velocity = velocity2
-			Calculate_Drag(choice) # Once velocity is max, calculate drag using max velocity
-			break # When the velocities are 'equal', the loop breaks.
-	
-	# Once drag is calculated, apply wrench with force/torque of zero to slow sub in that axis
-	if(choice == 'x'):
-		force_msg.wrench.force.x = 0
-	elif(choice == 'y'):
-		force_msg.wrench.force.y = 0
-	elif(choice == 'z'):
-		force_msg.wrench.force.z = 0
-	elif(choice == 'yw'):
-		force_msg.wrench.torque.z = 0
-	elif(choice == 'rl'):
-		force_msg.wrench.torque.x = 0
-	elif(choice == 'p'):
-		force_msg.wrench.torque.y = 0
-	
-	pub.publish(force_msg)
+    pub.publish(force_msg)
+    rospy.loginfo('Appling a force to find the drag in the {} direction'.format(choice))
+    while not (rospy.is_shutdown()):
+        '''
+        On each iteration of while loop: velocity is gained at two points in time (deltat = 2 seconds)
+        the velocity is compared by taking the absolute value of the difference of the two velocities
+        if the abs of the difference of the two velocities is smaller than small delta value,
+        the two velocities are assumed to be approximately equal. If two velocities taken at different
+        time intervals are equal, the velocity is assumed to be maximized, reaching terminal velocity.
+        '''
+        rospy.Subscriber("/odom", Odometry, get_velocity, choice)
+        velocity1 = velocity
+        rospy.sleep(2)
+        velocity2 = velocity
+        Compare_Velocities = abs(velocity1 - velocity2)
+        if Compare_Velocities < delta:
+            rospy.loginfo('Velocities are equal')
+            max_velocity = velocity2
+            calculate_drag(choice)  # Once velocity is max, calculate drag using max velocity
+            rospy.loginfo('Linear Drag Values-- x: {},  y: {},  z: {}'.format(linear_drag_x, linear_drag_y, linear_drag_z))
+            rospy.loginfo('Rotational Drag Values-- yaw: {},  pitch: {},  roll: {}'.format(yaw_drag, pitch_drag, roll_drag))
+            break  # When the velocities are 'equal', the loop breaks.
 
-	while(Velocity > delta and not rospy.is_shutdown()):
-		rospy.sleep(2) # While loop stops program from proceeding until the sub has basically stopped movement in that direction
-		continue 
+    # Once drag is calculated, apply wrench with force/torque of zero to slow sub in that axis
+    if(choice == 'x'):
+        force_msg.wrench.force.x = 0
+    elif(choice == 'y'):
+        force_msg.wrench.force.y = 0
+    elif(choice == 'z'):
+        force_msg.wrench.force.z = 0
+    elif(choice == 'yw'):
+        force_msg.wrench.torque.z = 0
+    elif(choice == 'rl'):
+        force_msg.wrench.torque.x = 0
+    elif(choice == 'p'):
+        force_msg.wrench.torque.y = 0
+
+    pub.publish(force_msg)
+    rospy.loginfo('stopping sub')
+    while(velocity > delta and not rospy.is_shutdown()):
+        # While loop stops program from proceeding until the sub has basically stopped movement in that direction
+        rospy.sleep(2)
+        continue
 
 
+if __name__ == '__main__':
+    try:
+        # Buoyancy is calculated
+        find_bouyancy('z')
+        # Drag Coeffcients are calculated in each axis
+        apply_force('z')
+        apply_force('y')
+        apply_force('x')
+        apply_force('yw')
+        apply_force('rl')
+        apply_force('p')
+        # Drag coefficients are written to file, do with them what you wish.
+        data = {'x': linear_drag_x, 'y': linear_drag_y, 'z': linear_drag_z, 'yaw': yaw_drag, 'pitch': pitch_drag, 'roll': roll_drag}
+        f = open('drag_coefficients.yaml','w')
+        yaml.dump(data,f)
+    except rospy.ROSInterruptException as e:
+        rospy.logerr(e)
 
-if __name__== '__main__':
-	try:
-		# Buoyancy is calculated
-		Find_Bouyancy('z')
-		# Drag Coeffcients are calculated in each axis
-		Apply_Force('z')
-		Apply_Force('y')
-		Apply_Force('x')
-		Apply_Force('yw')
-		Apply_Force('rl')
-		Apply_Force('p')
-		# Drag coefficients are written to file, do with them what you wish.
-		file_object = open("DragCoefficients", 'w')
-		file_object.write("Drag Coefficients:")
-		file_object.write("\nLinear X: " + str(Linear_Drag_X))
-		file_object.write("\nLinear Y: " + str(Linear_Drag_Y))
-		file_object.write("\nLinear Z: " + str(Linear_Drag_Z))
-		file_object.write("\nRoll: " + str(Roll_Drag))
-		file_object.write("\nPitch: " + str(Pitch_Drag))
-		file_object.write("\nYaw: " + str(Yaw_Drag))
-		file_object.close()
-	except rospy.ROSInterruptException:
-		pass
